@@ -6,8 +6,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io" // 🚀 НОВЫЙ ИМПОРТ для работы с файлами
 	"log"
 	"net/http"
+	"os"            // 🚀 НОВЫЙ ИМПОРТ для работы с файлами и директориями
+	"path/filepath" // 🚀 НОВЫЙ ИМПОРТ для безопасной работы с путями
 	"sync"
 	"time"
 
@@ -19,8 +22,10 @@ type UserData struct {
 	Email          string
 	HashedPassword string
 	Username       string // Используем как уникальный ключ
+	PhotoPath      string // ✅ НОВОЕ ПОЛЕ: Путь к файлу фотографии
 }
 
+// UserCredentials остается для login, но не используется для register
 type UserCredentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -34,39 +39,28 @@ const userContextKey contextKey = "username"
 
 // Имитация базы данных в памяти
 var (
-	// users - Ключ: Username (уникальный), Значение: UserData
 	users = make(map[string]UserData)
 	mu    sync.Mutex
 )
 
 // -------------------------
-// Middleware
+// Middleware и Вспомогательные функции (без изменений)
 // -------------------------
 
-// authMiddleware проверяет наличие куки сессии и передает имя пользователя в контекст.
 func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("session_username")
 		if err != nil {
-			// Если куки нет, возвращаем ошибку 401
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{"message": "Не авторизован", "status": "error"})
 			return
 		}
 
 		username := cookie.Value
-
-		// Передаем имя пользователя в контекст запроса
 		ctx := context.WithValue(r.Context(), userContextKey, username)
-
-		// Продолжаем обработку
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
-
-// -------------------------
-// Вспомогательные функции
-// -------------------------
 
 func generateSessionID() string {
 	b := make([]byte, 32)
@@ -85,43 +79,92 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 
-	var creds UserCredentials
-	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
-		http.Error(w, "Неверный формат JSON в теле запроса", http.StatusBadRequest)
+	// 1. Парсинг формы и установка лимита размера (10 MB)
+	const MAX_UPLOAD_SIZE = 10 << 20 // 10 MB
+	if err := r.ParseMultipartForm(MAX_UPLOAD_SIZE); err != nil {
+		log.Printf("❌ Ошибка парсинга формы: %v", err)
+		http.Error(w, fmt.Sprintf("Максимальный размер запроса %d MB", MAX_UPLOAD_SIZE/1048576), http.StatusBadRequest)
 		return
 	}
 
-	if creds.Username == "" || creds.Password == "" || creds.Email == "" {
+	// 2. Извлечение текстовых полей через r.FormValue()
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+	email := r.FormValue("email")
+
+	// Проверка обязательных полей
+	if username == "" || password == "" || email == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"message": "Все поля обязательны", "status": "error"})
+		json.NewEncoder(w).Encode(map[string]string{"message": "Все обязательные поля должны быть заполнены", "status": "error"})
 		return
 	}
 
 	mu.Lock()
-	defer mu.Unlock() // Гарантируем разблокировку
-
-	if _, exists := users[creds.Username]; exists {
+	if _, exists := users[username]; exists {
+		mu.Unlock()
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Имя пользователя уже занято", "status": "error"})
 		return
 	}
+	// Не разблокируем здесь, чтобы сохранить блокировку для записи данных пользователя
 
-	// 1. Хеширование пароля
-	hashedPasswordBytes, err := bcrypt.GenerateFromPassword([]byte(creds.Password), bcrypt.DefaultCost)
+	// 3. Обработка загруженного файла
+	var photoPath string
+	file, handler, err := r.FormFile("profile_photo") // "profile_photo" - атрибут 'name' из HTML
+
+	if err == nil {
+		// Файл был предоставлен
+		defer file.Close()
+
+		// 3.1. Создаем уникальный путь для сохранения
+		// ВАЖНО: 'uploads' должно быть относительно места запуска сервера (../uploads)
+		uploadDir := filepath.Join("..", "uploads")
+		// Генерируем уникальное имя файла для безопасности
+		uniqueFileName := fmt.Sprintf("%s_%d%s", username, time.Now().Unix(), filepath.Ext(handler.Filename))
+		fullPath := filepath.Join(uploadDir, uniqueFileName)
+		photoPath = "/uploads/" + uniqueFileName // Путь, который будет доступен через HTTP
+
+		// 3.2. Сохраняем файл на диск
+		dst, createErr := os.Create(fullPath)
+		if createErr != nil {
+			log.Printf("❌ Ошибка создания файла на диске: %v", createErr)
+			// Продолжаем регистрацию, но без фото
+		} else {
+			defer dst.Close()
+			if _, copyErr := io.Copy(dst, file); copyErr != nil {
+				log.Printf("❌ Ошибка копирования файла: %v", copyErr)
+			} else {
+				log.Printf("✅ Файл успешно сохранен: %s", fullPath)
+			}
+		}
+
+	} else if err != http.ErrMissingFile {
+		// Ошибка, отличная от отсутствия файла (например, слишком большой размер)
+		log.Printf("❌ Ошибка при получении файла: %v", err)
+		mu.Unlock()
+		http.Error(w, "Ошибка при обработке файла", http.StatusInternalServerError)
+		return
+	}
+
+	// 4. Хеширование пароля
+	hashedPasswordBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("❌ Ошибка хеширования пароля: %v", err)
+		mu.Unlock()
 		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
 		return
 	}
 
-	// 2. Сохранение пользователя
-	users[creds.Username] = UserData{
-		Username:       creds.Username,
-		Email:          creds.Email,
+	// 5. Сохранение пользователя в "базе данных"
+	users[username] = UserData{
+		Username:       username,
+		Email:          email,
 		HashedPassword: string(hashedPasswordBytes),
+		PhotoPath:      photoPath, // ✅ Сохраняем путь к фото
 	}
+	mu.Unlock() // Разблокируем после записи
 
-	log.Printf("✅ НОВЫЙ ПОЛЬЗОВАТЕЛЬ ДОБАВЛЕН: %s", creds.Username)
+	log.Printf("✅ НОВЫЙ ПОЛЬЗОВАТЕЛЬ ДОБАВЛЕН: %s (Фото: %s)", username, photoPath)
 
 	response := map[string]string{
 		"message": "Регистрация прошла успешно! Теперь войдите.",
@@ -131,6 +174,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// loginHandler (без изменений)
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Допустим только метод POST", http.StatusMethodNotAllowed)
@@ -160,7 +204,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Сравнение пароля
 	err := bcrypt.CompareHashAndPassword([]byte(userData.HashedPassword), []byte(creds.Password))
 	if err != nil {
 		log.Printf("❌ Неудачная попытка входа для %s", creds.Username)
@@ -169,7 +212,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Успешный вход! Устанавливаем куки сессии
 	cookie := http.Cookie{
 		Name:     "session_username",
 		Value:    creds.Username,
@@ -191,8 +233,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// userHandler (обновлен для возврата пути к фото)
 func userHandler(w http.ResponseWriter, r *http.Request) {
-	// Имя пользователя уже получено из куки и передано в контекст через authMiddleware
 	username := r.Context().Value(userContextKey).(string)
 
 	mu.Lock()
@@ -200,28 +242,28 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 	mu.Unlock()
 
 	if !exists {
-		// Теоретически невозможно, если куки верный, но на всякий случай
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Пользователь не найден", "status": "error"})
 		return
 	}
 
-	// Отправляем данные (только безопасные!)
+	// Отправляем данные (включая PhotoPath!)
 	response := map[string]string{
-		"username": userData.Username,
-		"email":    userData.Email,
-		"status":   "success",
+		"username":  userData.Username,
+		"email":     userData.Email,
+		"photo_url": userData.PhotoPath, // ✅ Возвращаем путь к фотографии
+		"status":    "success",
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
 }
 
+// logoutHandler (без изменений)
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Допустим только метод POST", http.StatusMethodNotAllowed)
 		return
 	}
-	// Устанавливаем куки с истекшим сроком действия
 	expiredCookie := http.Cookie{
 		Name:     "session_username",
 		Value:    "",
@@ -243,17 +285,23 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 // -------------------------
 
 func main() {
+	// 1. Убеждаемся, что папка для загрузок существует
+	uploadDir := filepath.Join("..", "uploads")
+	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+		log.Printf("Создание директории загрузок: %s", uploadDir)
+		if err := os.Mkdir(uploadDir, 0755); err != nil {
+			log.Fatalf("❌ Не удалось создать директорию загрузок: %v", err)
+		}
+	}
+
 	// --- Обслуживание статических файлов ---
-	// Учитывая, что main.go находится в 'cmd/', нужно подняться на уровень выше: '../'
-
-	// Обслуживаем корневой маршрут (/), чтобы http://localhost:8080/ открывал templates/index.html
+	// Обслуживаем корневой маршрут (/)
 	http.Handle("/", http.FileServer(http.Dir("../templates")))
-
-	// Обслуживаем папку /templates/ для ссылок типа <a href="/templates/reg.html">
 	http.Handle("/templates/", http.StripPrefix("/templates/", http.FileServer(http.Dir("../templates"))))
-
-	// Обслуживаем папку /js/ для <script src="/js/app.js">
 	http.Handle("/js/", http.StripPrefix("/js/", http.FileServer(http.Dir("../js"))))
+
+	// 2. ✅ НОВАЯ ДИРЕКТИВА: Обслуживаем папку /uploads/ для доступа к изображениям
+	http.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
 
 	// --- Обработчики API ---
 	http.HandleFunc("/register", registerHandler)

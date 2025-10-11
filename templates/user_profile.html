@@ -1,19 +1,128 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Профиль</title>
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Профиль пользователя</title>
+    <!-- Подключение Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Подключение Font Awesome для иконок -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        /* Настройка шрифта Inter */
+        html { font-family: 'Inter', sans-serif; }
+        
+        /* Пользовательские стили для активных элементов и бейджа */
+        /* Цвет фона страницы, чтобы соответствовать макету (очень светлый серый) */
+        body { background-color: #f7f9fb; }
+
+        .profile-card {
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Стиль для активного пункта меню */
+        .active-link {
+            background-color: #f0f4f9; /* Очень светлый синий/серый для активного фона */
+            font-weight: 600;
+        }
+        /* Стиль для текста активного пункта */
+        .active-link .text-gray-900,
+        .active-link .text-gray-500 {
+            color: #1e3a8a !important; /* Темно-синий для активного текста/иконки */
+        }
+        
+        /* Стиль для иконок в неактивном состоянии */
+        .menu-link .fa {
+            color: #6b7280; /* Серый */
+        }
+
+        /* Общие стили для ссылок меню */
+        .menu-link {
+            transition: all 0.2s ease-in-out;
+            margin-bottom: 4px; /* Небольшой отступ между пунктами */
+        }
+        .menu-link:hover {
+            background-color: #f3f4f6;
+        }
+
+        /* Стиль для бейджа "Allow" */
+        .allow-badge {
+            background-color: #e5e7eb;
+            color: #4b5563;
+        }
+    </style>
 </head>
-<body>
-  <div class="container">
-    <h2>Профиль пользователя</h2>
-    <p>Добро пожаловать, <span id="displayUsername"></span>!</p>
-    <button id="logoutBtn">Выйти</button>
-  </div>
+<body class="flex justify-center items-start min-h-screen py-16 px-4">
+    
+    <!-- Главный контейнер для макета -->
+    <div class="flex w-full max-w-5xl gap-8 flex-col lg:flex-row">
+        
+        <!-- 1. Левая колонка: Боковое меню профиля (Profile Card) -->
+        <aside class="w-full lg:w-72 bg-white p-6 rounded-2xl profile-card flex-shrink-0 h-fit">
+            
+            <!-- Карточка пользователя с аватаром -->
+            <div class="flex items-center pb-6 mb-6 border-b border-gray-100">
+                <!-- Аватар -->
+                <img id="userAvatar"  alt="Аватар пользователя" class="w-14 h-14 rounded-full object-cover mr-4 shadow-md" onerror="this.onerror=null;this.src='https://placehold.co/56x56/a8c2f5/000000?text=AZ';" />
+                
+                <div class="user-info truncate">
+                    <!-- Элемент для динамического имени -->
+                    <div class="font-semibold text-gray-900 text-base truncate" id="displayUsername">
+                        Загрузка...
+                    </div>
+                    <!-- Элемент для динамического email -->
+                    <div class="text-sm text-gray-500 truncate" >
+                        <span id="userEmailDisplay"></span>
+                    </div>
+                </div>
+            </div>
 
-    <script src="../js/app.js"></script> 
+            <!-- Меню навигации -->
+            <nav class="space-y-1">
+                <!-- Активный пункт меню: Мой Профиль -->
+                <a href="#" class="menu-link active-link flex items-center p-3 text-gray-900 rounded-xl">
+                    <i class="fas fa-user w-5 text-lg text-center mr-3"></i>
+                    <span class="flex-grow">Мой Профиль</span>
+                    <i class="fas fa-chevron-right text-sm text-gray-500 ml-2"></i>
+                </a>
+                
+                <!-- Друзья -->
+                <a href="#" class="menu-link flex items-center p-3 text-gray-900 rounded-xl">
+                    <i class="fas fa-users w-5 text-lg text-center mr-3 text-gray-500"></i>
+                    <span class="flex-grow">Друзья</span>
+                    <i class="fas fa-chevron-right text-sm text-gray-500 ml-2"></i>
+                </a>
+                
+                <!-- Уведомления с бейджем -->
+                <a href="#" class="menu-link flex items-center p-3 text-gray-900 rounded-xl">
+                    <i class="fas fa-bell w-5 text-lg text-center mr-3 text-gray-500"></i>
+                    <span class="flex-grow">Уведомление</span>
+                    <!-- Бейдж "Allow" -->
+                    <span class="allow-badge text-xs font-medium px-2 py-1 rounded-md ml-2">
+                        Allow
+                    </span>
+                </a>
+                
+                <!-- Пункт "Выйти" -->
+                <button id="logoutBtn" class="w-full menu-link flex items-center p-3 text-gray-900 rounded-xl mt-4 hover:bg-red-50 hover:text-red-600">
+                    <i class="fas fa-sign-out-alt w-5 text-lg text-center mr-3 text-gray-500 group-hover:text-red-600"></i>
+                    <span class="flex-grow text-left">Выйти</span>
+                </button>
+            </nav>
+        </aside>
 
+        <!-- 2. Правая колонка: Основное содержимое -->
+        <main class="flex-grow bg-white p-8 rounded-2xl profile-card min-h-[400px]">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Настройки и информация</h2>
+            <p class="text-gray-600">
+                Здесь будет основное содержимое вашего профиля, которое соответствует активному пункту меню "Мой Профиль".
+            </p>
+            <!-- Добавлено для соответствия старому коду, хотя теперь используется более структурированный заголовок выше -->
+            <p class="hidden">Добро пожаловать, <span id="displayUsername"></span>!</p> 
+        </main>
+    </div>
+    
+    <script src="../js/app.js">
+    </script>
 </body>
 </html>

@@ -9,12 +9,20 @@
 <body>
   <div class="container">
     <h2>Регистрация</h2>
-    <form id="loginForm">
-      <input type="text" id="username" placeholder="Имя пользователя" required />
-      <input type="password" id="password" placeholder="Пароль" required />
-      <button type="submit">Войти</button>
+    <form id="registerForm" enctype="multipart/form-data"> 
+      
+      <label for="regPhoto">Фото профиля:</label>
+      <input type="file" id="regPhoto" name="profile_photo" accept="image/*" />
+
+      <input type="text" id="regUsername" name="username" placeholder="Имя пользователя" required />
+      <input type="password" id="regPassword" name="password" placeholder="Пароль" required />
+      <input type="email" id="regEmail" name="email" placeholder="Email" required />
+
+      <p id="message" style="color: red;"></p> 
+
+      <button type="submit">Создать аккаунт</button>
     </form>
-    <p>Уже есть аккаунт? <a href="index.html">Войти</a></p>
+    <p>Уже есть аккаунт? <a href="/">Войти</a></p>
   </div>
   <script src="/js/app.js"></script>
 </body>

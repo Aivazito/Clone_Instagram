@@ -20,20 +20,16 @@ document.addEventListener('DOMContentLoaded', () => {
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            // Сбор данных формы
-            const data = {
-                username: getElement('regUsername')?.value,
-                password: getElement('regPassword')?.value,
-                email: getElement('regEmail')?.value
-            };
+            // ✅ ИСПОЛЬЗУЕМ FormData для отправки текстовых полей и файла
+            const formData = new FormData(registerForm);
             
             if (registerMessageElement) registerMessageElement.textContent = '';
             
             try {
                 const response = await fetch('/register', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    // ⚠️ НЕ устанавливаем Content-Type, чтобы браузер использовал multipart/form-data
+                    body: formData
                 });
 
                 const result = await response.json();
@@ -64,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    
     // ------------------------------------
     // 2. Обработка входа (Логина)
     // ------------------------------------
@@ -127,7 +124,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. Загрузка данных профиля и выход
     // ------------------------------------
     const displayUsernameElement = getElement('displayUsername');
+    const userEmailDisplayElement = getElement('userEmailDisplay'); 
     const logoutBtn = getElement('logoutBtn');
+    
+    // ✅ НОВЫЙ ЭЛЕМЕНТ: Аватар пользователя, который мы обновили в HTML
+    const userAvatarElement = getElement('userAvatar'); 
     
     // Проверяем, что мы на странице профиля
     if (displayUsernameElement) {
@@ -138,7 +139,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (response.ok) {
                     displayUsernameElement.textContent = result.username;
-                    console.log(`👋 Пользователь авторизован: ${result.username}`);
+                    
+                    // Отображаем Email
+                    if (userEmailDisplayElement && result.email) {
+                        userEmailDisplayElement.textContent = result.email;
+                    } else if (userEmailDisplayElement) {
+                        userEmailDisplayElement.textContent = 'Email не указан';
+                    }
+                    
+                    // 🔑 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Устанавливаем путь к фотографии
+                    if (userAvatarElement && result.photo_url) {
+                        // Go-сервер возвращает photo_url, например: "/uploads/user_12345.jpg"
+                        userAvatarElement.src = result.photo_url;
+                        // При ошибке загрузки (например, пользователь не загрузил фото)
+                        // сработает onerror, который мы установили в HTML.
+                    }
+
+                    console.log(`👋 Пользователь авторизован: ${result.username}, Email: ${result.email}, Фото: ${result.photo_url || 'Нет'}`);
                 } else {
                     // 401 Unauthorized от Go-сервера (куки нет или недействителен)
                     console.warn("⚠️ Сессия недействительна. Перенаправление на вход.");

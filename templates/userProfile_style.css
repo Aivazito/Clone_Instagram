@@ -1,0 +1,206 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+/* Определение переменных для цветов */
+:root {
+    --primary-color: #3b82f6; /* Синий для активных элементов */
+    --text-dark: #1f2937;
+    --text-medium: #6b7280;
+    --bg-light: #f9fafb; /* Светлый фон страницы */
+    --bg-white: #ffffff;
+    --border-color: #e5e7eb;
+    --shadow-light: 0 4px 6px rgba(0, 0, 0, 0.05);
+    --notification-color: #fca5a5; /* Розовый для бейджа */
+}
+
+/* Общие стили и сброс */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-light);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* ----------------------------------
+   Главный макет (Desktop-First Grid/Flex)
+   ---------------------------------- */
+.page-layout {
+    display: flex;
+    width: 100%;
+    max-width: 1200px; /* Ограничение максимальной ширины */
+}
+
+/* ----------------------------------
+   Боковая Панель (Sidebar)
+   ---------------------------------- */
+.profile-sidebar {
+    width: 280px;
+    background-color: var(--bg-white);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: var(--shadow-light);
+    flex-shrink: 0; /* Фиксированная ширина, не сжимается */
+    margin-right: 20px;
+}
+
+/* Карточка пользователя */
+.user-card {
+    display: flex;
+    align-items: center;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.user-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 15px;
+    /* Стили для заглушки */
+    background-color: var(--primary-color);
+    color: var(--bg-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+}
+
+.username {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.email {
+    font-size: 13px;
+    color: var(--text-medium);
+}
+
+/* Меню навигации */
+.profile-menu ul {
+    list-style: none;
+}
+
+.menu-item a {
+    display: flex;
+    align-items: center;
+    padding: 12px 10px;
+    text-decoration: none;
+    color: var(--text-dark);
+    font-size: 15px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.menu-item a:hover {
+    background-color: var(--bg-light);
+    color: var(--primary-color);
+}
+
+.menu-item.active a {
+    background-color: var(--primary-color);
+    color: var(--bg-white);
+    font-weight: 600;
+}
+
+.menu-item.active a .arrow {
+    color: var(--bg-white);
+}
+
+.menu-item .icon {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+    margin-right: 15px;
+}
+
+.menu-item span {
+    flex-grow: 1; /* Чтобы текст занимал доступное место */
+}
+
+.menu-item .arrow {
+    font-size: 10px;
+    color: var(--text-medium);
+    margin-left: 10px;
+}
+
+/* Бейдж уведомлений */
+.notification-badge {
+    background-color: var(--notification-color);
+    color: var(--text-dark);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: auto; /* Отодвигает бейдж вправо */
+}
+
+/* Стиль для кнопки "Выйти" */
+.menu-item.logout {
+    margin-top: 30px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 10px;
+}
+
+.menu-item.logout a {
+    color: var(--text-medium);
+}
+
+.menu-item.logout a:hover {
+    color: #ef4444; /* Красный при наведении */
+}
+
+
+/* ----------------------------------
+   Основное Содержимое (Main Content)
+   ---------------------------------- */
+.main-content {
+    flex-grow: 1; /* Занимает оставшееся место */
+    background-color: var(--bg-white);
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: var(--shadow-light);
+}
+
+.main-content h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 15px;
+}
+
+.main-content p {
+    color: var(--text-medium);
+}
+
+/* ----------------------------------
+   Адаптивность для мобильных устройств
+   ---------------------------------- */
+@media (max-width: 768px) {
+    .page-layout {
+        flex-direction: column; /* На маленьких экранах колонки становятся строками */
+        max-width: 100%;
+    }
+
+    .profile-sidebar {
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 20px;
+        border-radius: 12px;
+    }
+
+    .main-content {
+        width: 100%;
+    }
+}
