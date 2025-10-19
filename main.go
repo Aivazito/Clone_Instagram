@@ -26,7 +26,6 @@ func main() {
 
 	// 1. Главный маршрут (/)
 	// Обслуживаем содержимое папки static/templates по корневому пути (/).
-	// Это позволяет файлам index.html и user_profile.html быть доступными как / и /user_profile.html
 	http.Handle("/", http.FileServer(http.Dir("static/templates")))
 
 	// 2. JavaScript (/js/)
@@ -44,8 +43,10 @@ func main() {
 	http.HandleFunc("/login", loginHandler)
 	http.HandleFunc("/logout", logoutHandler)
 
-	// Защищенный маршрут (требует аутентификации через authMiddleware)
+	// Защищенные маршруты (требуют аутентификации через authMiddleware)
 	http.HandleFunc("/user", authMiddleware(userHandler))
+	// ✅ ДОБАВЛЕН НОВЫЙ МАРШРУТ ДЛЯ ОБНОВЛЕНИЯ ПРОФИЛЯ
+	http.HandleFunc("/user/update", authMiddleware(updateProfileHandler))
 
 	// --- Запуск Сервера ---
 

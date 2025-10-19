@@ -1,6 +1,7 @@
 package main
 
 import (
+	// Добавлен, если не было
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -44,7 +45,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 	username := r.FormValue("username")
 	password := r.FormValue("password")
-	email := r.FormValue("email")
+	email := r.FormValue("email") // Используем email
 
 	if username == "" || password == "" || email == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -53,27 +54,27 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mu.Lock()
-	if _, exists := users[username]; exists {
+	// КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Проверяем по email, так как он теперь ключ
+	if _, exists := users[email]; exists {
 		mu.Unlock()
 		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"message": "Имя пользователя уже занято", "status": "error"})
+		json.NewEncoder(w).Encode(map[string]string{"message": "Email уже используется", "status": "error"})
 		return
 	}
 
-	// 2. Обработка загруженного файла
+	// 2. Обработка загруженного файла (логика не меняется)
 	var photoPath string
-	file, handler, err := r.FormFile("profile_photo") // Имя поля в форме
+	file, handler, err := r.FormFile("profile_photo")
 
 	if err == nil {
 		defer file.Close()
 
 		uploadDir := filepath.Join("static", "uploads")
-		// Генерируем уникальное имя файла для безопасности
+		// Генерируем уникальное имя файла
 		uniqueFileName := fmt.Sprintf("%s_%d%s", username, time.Now().Unix(), filepath.Ext(handler.Filename))
 		fullPath := filepath.Join(uploadDir, uniqueFileName)
-		photoPath = "/uploads/" + uniqueFileName // Путь, доступный через HTTP
+		photoPath = "/uploads/" + uniqueFileName
 
-		// Сохраняем файл на диск
 		dst, createErr := os.Create(fullPath)
 		if createErr != nil {
 			log.Printf("❌ Ошибка создания файла на диске: %v. Продолжаем без фото.", createErr)
@@ -102,7 +103,8 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users[username] = UserData{
+	// КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Сохраняем данные по ключу email
+	users[email] = UserData{
 		Username:       username,
 		Email:          email,
 		HashedPassword: string(hashedPasswordBytes),
@@ -110,7 +112,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	mu.Unlock()
 
-	log.Printf("✅ НОВЫЙ ПОЛЬЗОВАТЕЛЬ ДОБАВЛЕН: %s (Фото: %s)", username, photoPath)
+	log.Printf("✅ НОВЫЙ ПОЛЬЗОВАТЕЛЬ ДОБАВЛЕН: %s (Email: %s, Фото: %s)", username, email, photoPath)
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Регистрация прошла успешно! Теперь войдите.", "status": "success"})
@@ -118,8 +120,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 
 // loginHandler обрабатывает вход пользователя, устанавливая сессионную куки.
 func loginHandler(w http.ResponseWriter, r *http.Request) {
-	// ... (Ваша существующая логика loginHandler без изменений) ...
-
 	if r.Method != http.MethodPost {
 		http.Error(w, "Допустим только метод POST", http.StatusMethodNotAllowed)
 		return
@@ -132,33 +132,36 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if creds.Username == "" || creds.Password == "" {
+	// КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Проверяем наличие email, а не username
+	if creds.Email == "" || creds.Password == "" {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"message": "Введите имя пользователя и пароль", "status": "error"})
+		json.NewEncoder(w).Encode(map[string]string{"message": "Введите email и пароль", "status": "error"})
 		return
 	}
 
 	mu.Lock()
-	userData, exists := users[creds.Username]
+	// КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Ищем пользователя по Email
+	userData, exists := users[creds.Email]
 	mu.Unlock()
 
 	if !exists {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"message": "Неверное имя пользователя или пароль", "status": "error"})
+		json.NewEncoder(w).Encode(map[string]string{"message": "Неверный email или пароль", "status": "error"})
 		return
 	}
 
 	err := bcrypt.CompareHashAndPassword([]byte(userData.HashedPassword), []byte(creds.Password))
 	if err != nil {
-		log.Printf("❌ Неудачная попытка входа для %s", creds.Username)
+		log.Printf("❌ Неудачная попытка входа для %s", creds.Email)
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"message": "Неверное имя пользователя или пароль", "status": "error"})
+		json.NewEncoder(w).Encode(map[string]string{"message": "Неверный email или пароль", "status": "error"})
 		return
 	}
 
+	// КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Сохраняем email в куке
 	cookie := http.Cookie{
-		Name:     "session_username",
-		Value:    creds.Username,
+		Name:     "session_username", // Название куки оставляем для совместимости (но теперь хранит email)
+		Value:    creds.Email,        // Храним Email
 		Expires:  time.Now().Add(24 * time.Hour),
 		HttpOnly: true,
 		Secure:   false,
@@ -167,7 +170,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &cookie)
 
-	log.Printf("✅ Успешный вход пользователя: %s. Установлена куки.", creds.Username)
+	log.Printf("✅ Успешный вход пользователя: %s. Установлена куки.", userData.Username)
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Вход выполнен успешно!", "status": "success"})
@@ -175,15 +178,17 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 // userHandler возвращает данные профиля (доступен только после аутентификации).
 func userHandler(w http.ResponseWriter, r *http.Request) {
-	username := r.Context().Value(userContextKey).(string)
+	// КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Получаем email из контекста
+	email := r.Context().Value(userContextKey).(string)
 
 	mu.Lock()
-	userData, exists := users[username]
+	// КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Ищем пользователя по email
+	userData, exists := users[email]
 	mu.Unlock()
 
 	if !exists {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"message": "Пользователь не найден", "status": "error"})
+		json.NewEncoder(w).Encode(map[string]string{"message": "Пользователь не найден (по email)", "status": "error"})
 		return
 	}
 
@@ -198,7 +203,7 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// logoutHandler сбрасывает сессионную куки.
+// logoutHandler сбрасывает сессионную куки (логика не меняется).
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Допустим только метод POST", http.StatusMethodNotAllowed)
@@ -218,4 +223,146 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("🚫 Пользователь вышел.")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Выход выполнен", "status": "success"})
+}
+
+// =======================================================================
+// ✅ НОВЫЙ ОБРАБОТЧИК ДЛЯ ОБНОВЛЕНИЯ ПРОФИЛЯ
+// =======================================================================
+
+func updateProfileHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Допустим только метод POST", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+
+	// 1. Получаем email текущего пользователя из контекста
+	oldEmail := r.Context().Value(userContextKey).(string)
+
+	// 2. Парсинг формы (Максимальный размер запроса 10 MB)
+	if err := r.ParseMultipartForm(MAX_UPLOAD_SIZE); err != nil {
+		log.Printf("❌ Ошибка парсинга формы обновления: %v", err)
+		http.Error(w, "Слишком большой запрос", http.StatusBadRequest)
+		return
+	}
+
+	// Получаем новые значения полей
+	newUsername := r.FormValue("username") // Имя и Фамилия, объединенные в JS
+	newEmail := r.FormValue("email")
+	newPassword := r.FormValue("new_password") // Пароль
+
+	if newUsername == "" || newEmail == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Имя и Email не могут быть пустыми", "status": "error"})
+		return
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	userData, exists := users[oldEmail]
+	if !exists {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Пользователь не найден", "status": "error"})
+		return
+	}
+
+	// 3. Обработка загруженного файла (если есть)
+	var newPhotoPath = userData.PhotoPath // Сохраняем старый путь по умолчанию
+	file, handler, err := r.FormFile("profile_photo")
+
+	if err == nil {
+		defer file.Close()
+
+		// Удаляем старое фото, если оно существует, для очистки диска
+		if userData.PhotoPath != "" && userData.PhotoPath != newPhotoPath {
+			oldFilePath := filepath.Join("static", userData.PhotoPath)
+			if oldFilePath[0] == '/' {
+				oldFilePath = oldFilePath[1:] // Убираем начальный слэш
+			}
+			os.Remove(oldFilePath)
+		}
+
+		// Сохраняем новое фото
+		uploadDir := filepath.Join("static", "uploads")
+		uniqueFileName := fmt.Sprintf("%s_%d%s", newUsername, time.Now().Unix(), filepath.Ext(handler.Filename))
+		fullPath := filepath.Join(uploadDir, uniqueFileName)
+		newPhotoPath = "/uploads/" + uniqueFileName
+
+		dst, createErr := os.Create(fullPath)
+		if createErr != nil {
+			log.Printf("❌ Ошибка создания нового файла: %v", createErr)
+		} else {
+			defer dst.Close()
+			if _, copyErr := io.Copy(dst, file); copyErr != nil {
+				log.Printf("❌ Ошибка копирования нового файла: %v", copyErr)
+			} else {
+				log.Printf("✅ Новый файл успешно сохранен: %s", fullPath)
+			}
+		}
+	} else if err != http.ErrMissingFile {
+		log.Printf("❌ Ошибка при получении файла: %v", err)
+		http.Error(w, "Ошибка при обработке файла", http.StatusInternalServerError)
+		return
+	}
+
+	// 4. Обновление хеша пароля (если предоставлен)
+	hashedPassword := userData.HashedPassword
+	if newPassword != "" {
+		hashedPasswordBytes, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+		if err != nil {
+			log.Printf("❌ Ошибка хеширования нового пароля: %v", err)
+			http.Error(w, "Внутренняя ошибка сервера при хешировании", http.StatusInternalServerError)
+			return
+		}
+		hashedPassword = string(hashedPasswordBytes)
+	}
+
+	// 5. Обновление структуры данных
+	updatedData := UserData{
+		Username:       newUsername,
+		Email:          newEmail,
+		HashedPassword: hashedPassword,
+		PhotoPath:      newPhotoPath,
+	}
+
+	// 6. Обработка изменения Email (КЛЮЧЕВОЙ МОМЕНТ)
+	if oldEmail != newEmail {
+		// Проверяем, не занят ли новый email (другим пользователем)
+		if _, exists := users[newEmail]; exists {
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]string{"message": "Новый Email уже занят другим пользователем", "status": "error"})
+			return
+		}
+
+		// Удаляем старую запись и создаем новую с новым email
+		delete(users, oldEmail)
+		users[newEmail] = updatedData
+		log.Printf("✅ Пользователь %s обновил Email с %s на %s", newUsername, oldEmail, newEmail)
+
+		// 7. Если Email изменился, необходимо обновить сессионную куку
+		cookie := http.Cookie{
+			Name:     "session_username",
+			Value:    newEmail,
+			Expires:  time.Now().Add(24 * time.Hour),
+			HttpOnly: true,
+			Secure:   false,
+			SameSite: http.SameSiteLaxMode,
+			Path:     "/",
+		}
+		http.SetCookie(w, &cookie)
+
+	} else {
+		// Email не изменился, просто обновляем текущую запись
+		users[oldEmail] = updatedData
+	}
+
+	log.Printf("✅ Профиль пользователя %s успешно обновлен. (Email: %s)", updatedData.Username, updatedData.Email)
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message":   "Настройки профиля успешно сохранены!",
+		"status":    "success",
+		"new_email": updatedData.Email, // Возвращаем новый email (для JS)
+	})
 }
