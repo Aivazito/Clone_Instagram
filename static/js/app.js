@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const displayUsernameElement = getElement('displayUsername');
     const userEmailDisplayElement = getElement('userEmailDisplay'); 
     const logoutBtn = getElement('logoutBtn');
-    const userAvatarElement = getElement('userAvatar'); 
+    const userAvatarElement = getElement('userAvatar'); // Аватар в боковом меню
     
     // ✅ Элементы формы профиля
     const profileSettingsForm = getElement('profileSettingsForm');
@@ -133,9 +133,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const lastNameInput = getElement('lastName');
     const emailInput = getElement('email');
     const newPasswordInput = getElement('newPassword');
-    const userAvatarMain = getElement('userAvatarMain');
-    const displayUsernameMain = getElement('displayUsernameMain');
-    const userEmailDisplayMain = getElement('userEmailDisplayMain');
+    const userAvatarMain = getElement('userAvatarMain'); // Аватар в главной секции
+    const photoUploadInput = getElement('photoUpload'); // Input для файла
+    const displayUsernameMain = getElement('displayUsernameMain'); // Этих элементов нет в новой HTML, но оставляем на всякий случай
+    const userEmailDisplayMain = getElement('userEmailDisplayMain'); // Этих элементов нет в новой HTML, но оставляем на всякий случай
     const profileMessageElement = getElement('profileMessage'); // Элемент для вывода сообщений
 
     // Проверяем, что мы на странице профиля
@@ -183,6 +184,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         loadUserProfile();
+
+        // =======================================================================
+        // ✅ 4. ПРЕДВАРИТЕЛЬНЫЙ ПРОСМОТР ФОТО
+        // =======================================================================
+        if (photoUploadInput) {
+            photoUploadInput.addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                
+                if (file) {
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        const imageUrl = e.target.result;
+                        
+                        // Обновляем оба элемента <img>
+                        if (userAvatarMain) {
+                            userAvatarMain.src = imageUrl;
+                            // Сбрасываем обработчик ошибок (для плейсхолдера)
+                            userAvatarMain.onerror = null; 
+                        }
+                        if (userAvatarElement) {
+                            userAvatarElement.src = imageUrl;
+                            userAvatarElement.onerror = null; 
+                        }
+                        
+                        console.log('🖼️ Предварительный просмотр фото обновлен.');
+                    };
+                    
+                    // Считываем файл как Data URL (строку base64)
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
         
         // =======================================================================
         // ✅ ОБРАБОТЧИК СОХРАНЕНИЯ НАСТРОЕК ПРОФИЛЯ
