@@ -359,6 +359,11 @@ func updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("✅ Профиль пользователя %s успешно обновлен. (Email: %s)", updatedData.Username, updatedData.Email)
 
+	if oldEmail != updatedData.Email || oldEmail == updatedData.Email {
+		// Используем oldEmail, чтобы хаб мог найти клиента, у которого этот email в структуре
+		hub.profileUpdate <- oldEmail
+	}
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message":   "Настройки профиля успешно сохранены!",
